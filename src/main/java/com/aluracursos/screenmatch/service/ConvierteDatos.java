@@ -12,11 +12,11 @@ public class ConvierteDatos implements IConvierteDatos {      // Define la clase
     @Override                                                 // Indica que se está sobreescribiendo (implementando) un método definido en la interfaz IConvierteDatos.
     public <T> T obtenerDatos(String Json, Class<T> clase) {  /* Método genérico que:
 
-                                                               //  Recibe una cadena JSON.
+                                                                 Recibe una cadena JSON.
 
-                                                                // Recibe la clase del tipo que se desea crear (por ejemplo, DatosSerie.class).
+                                                                 Recibe la clase del tipo que se desea crear (por ejemplo, DatosSerie.class).
 
-                                                                   Devuelve un objeto de tipo T (puede ser cualquier clase que tú definas). */
+                                                                  Devuelve un objeto de tipo T (puede ser cualquier clase que tú definas). */
 
 
 

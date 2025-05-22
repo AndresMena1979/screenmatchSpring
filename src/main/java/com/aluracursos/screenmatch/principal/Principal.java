@@ -1,0 +1,137 @@
+package com.aluracursos.screenmatch.principal;
+
+import com.aluracursos.screenmatch.model.DatosEpisodio;
+import com.aluracursos.screenmatch.model.DatosSerie;
+import com.aluracursos.screenmatch.model.DatosTemporada;
+import com.aluracursos.screenmatch.model.Episodio;
+import com.aluracursos.screenmatch.service.ConsumoAPI;
+import com.aluracursos.screenmatch.service.ConvierteDatos;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Scanner;
+import java.util.stream.Collectors;
+
+public class Principal {
+
+    //Busca los datos generales de la serie
+
+    private Scanner teclado = new Scanner(System.in);
+    private ConsumoAPI consumoAPI = new ConsumoAPI();
+    private final String URL_BASE = "http://www.omdbapi.com/?t=";
+    private final String API_KEY = "&apikey=464cb2ce";
+
+    private ConvierteDatos conversor = new ConvierteDatos();
+
+
+
+    public void muestraElMenu(){
+        System.out.println("Por favor escribe el nombre de la serie que deseas buscar");
+        var nombreSerie = teclado.nextLine();
+
+        var json = consumoAPI.obtenerDatos(URL_BASE + nombreSerie.replace(" ", "+") + API_KEY);   // Llama a la API OMDb y obtiene una respuesta en formato JSON con los datos de la serie "Game of Thrones".
+
+        var datos = conversor.obtenerDatos(json,DatosSerie.class);
+
+       // System.out.println(datos);
+
+// Busca los datos de todas las temporadas
+
+        List<DatosTemporada> temporadas = new ArrayList<>();
+        for (int i = 1; i < datos.totalDeTemporadas(); i++) {
+
+            json = consumoAPI.obtenerDatos(URL_BASE+nombreSerie.replace(" ", "+")+"&Season="+i+ API_KEY);   // Llama a la API OMDb y obtiene una respuesta en formato JSON con los datos de la serie "Game of Thrones".
+
+            var datosTemporadas = conversor.obtenerDatos(json,DatosTemporada.class);
+            temporadas.add(datosTemporadas);
+
+        }
+
+       // temporadas.forEach(System.out::println); //Imprime las temporadas con sus episodios
+
+
+//       Mostrar solo el titulo de los episodios para las temporadas
+//
+//        for (int i = 0; i < datos.totalDeTemporadas(); i++) {
+//
+//            List<DatosEpisodio>episodiosTemporada=temporadas.get(i).episodios();
+//
+//            for (int j = 0; j < episodiosTemporada.size(); j++) {
+//
+//                System.out.println(episodiosTemporada.get(j).titulo());
+//
+//
+//            }
+//
+//
+//        }
+
+ //   temporadas.forEach(t -> t.episodios().forEach(e -> System.out.println(e.titulo()))); //FUncion lambda
+
+//Convertir todas las informaciones a una lista del tipo DatosEpisodio
+
+
+List<DatosEpisodio> datosEpisodios = temporadas.stream()
+                                               .flatMap(t -> t.episodios().stream())
+                                               .collect(Collectors.toList());
+
+// Top 5 episodios
+        System.out.println("Top 5 episodios");
+        datosEpisodios.stream()
+                .filter(e -> !e.evaluacion().equalsIgnoreCase("N/A"))
+                .sorted(Comparator.comparing(DatosEpisodio::evaluacion).reversed())
+                .limit(5)
+                .forEach(System.out::println);
+
+
+// Convirtiendo los datos a una lista de tipo episodio
+
+        List<Episodio> episodios = temporadas.stream()                //Convierte la lista de temporadas en un Stream para poder usar operaciones funcionales como map, flatMap, filter, etc.
+
+                .flatMap(t ->t.episodios().stream()    /* Para cada temporada t, toma la lista de episodios de esa temporada (t.episodios()) y la convierte también en un Stream.
+                                                                         Pero en lugar de obtener una lista de listas de episodios (es decir, un Stream<Stream<DatosEpisodio>>), usa flatMap para
+                                                                         "aplanarlos" todos en un solo Stream<DatosEpisodio>. */
+                .map(d -> new Episodio(t.numero(),d)))  //Para cada episodio d de la temporada t, crea un nuevo objeto de tipo Episodio usando el número de la temporada t.numero() y el DatosEpisodio d.
+                                                                     //  Esto requiere que tu clase Episodio tenga un constructor (Episodio
+                .collect(Collectors.toList());                       // Reúne todos esos objetos Episodio en una lista (List<Episodio>).
+
+
+        episodios.forEach(System.out::println);                      // Imprime cada episodio usando el toString() de la clase Episodio.
+
+
+        //Busqueda de Episodio a partir de X año
+
+        System.out.println("Por favor indica el año a partir del cual deseas ver los episodios");
+
+        var fecha= teclado.nextInt();                              // ← Lee el año ingresado por el usuario (por ejemplo: 2015)
+        teclado.nextLine();                                         // ← Limpia el salto de línea pendiente
+
+        LocalDate fechaBusqueda = LocalDate.of(fecha,1,1);    // ← Crea una fecha con el 1 de enero de ese año
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");    // ← Formato para imprimir la fecha en estilo día/mes/año
+
+        episodios.stream()                  //Esto convierte la lista episodios en un flujo de datos (Stream)
+
+                .filter(e -> e.getFechaDeLanzamiento() != null  && e.getFechaDeLanzamiento().isAfter(fechaBusqueda))   //Esto filtra el stream, es decir: descarta los episodios que no cumplen la condición.
+                                                                                                                               // e -> ... Esto es una expresión lambda. La variable e representa cada objeto Episodio que pasa por el stream.
+                                                                                                                               // e.getFechaDeLanzamiento() != null,  Nos aseguramos de que el episodio tiene una fecha de lanzamiento válida. Si es null, lo ignoramos.
+                                                                                                                               //Si ambas condiciones son verdaderas, el episodio pasa el filtro y continúa en el stream.
+                .forEach(e -> System.out.println(           // Este bloque se encarga de imprimir los episodios filtrados
+
+                        "Temporada " + e.getTemporada() +                                                                /*e es el episodio actual del stream.
+                                                                                                                         e.getTemporada() devuelve el número de la temporada.
+                                                                                                                         e.getTitulo() devuelve el título del episodio.
+                                                                                                                         e.getFechaDeLanzamiento().format(dtf) devuelve la fecha en el formato dd/MM/yyyy.*/
+                                "Episodio " + e.getTitulo() +
+                                "Fecha de Lanzamiento " + e.getFechaDeLanzamiento().format(dtf)
+                ));
+
+
+    }
+
+
+
+}
+
