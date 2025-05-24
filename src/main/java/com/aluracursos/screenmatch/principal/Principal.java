@@ -9,10 +9,7 @@ import com.aluracursos.screenmatch.service.ConvierteDatos;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Principal {
@@ -32,7 +29,8 @@ public class Principal {
         System.out.println("Por favor escribe el nombre de la serie que deseas buscar");
         var nombreSerie = teclado.nextLine();
 
-        var json = consumoAPI.obtenerDatos(URL_BASE + nombreSerie.replace(" ", "+") + API_KEY);   // Llama a la API OMDb y obtiene una respuesta en formato JSON con los datos de la serie "Game of Thrones".
+        var json = consumoAPI.obtenerDatos(URL_BASE + nombreSerie.replace(" ", "+") + API_KEY);   /* Llama a la API OMDb y obtiene una respuesta en formato JSON con los datos de
+                                                                                                                          la serie "Game of Thrones".*/
 
         var datos = conversor.obtenerDatos(json,DatosSerie.class);
 
@@ -43,7 +41,8 @@ public class Principal {
         List<DatosTemporada> temporadas = new ArrayList<>();
         for (int i = 1; i < datos.totalDeTemporadas(); i++) {
 
-            json = consumoAPI.obtenerDatos(URL_BASE+nombreSerie.replace(" ", "+")+"&Season="+i+ API_KEY);   // Llama a la API OMDb y obtiene una respuesta en formato JSON con los datos de la serie "Game of Thrones".
+            json = consumoAPI.obtenerDatos(URL_BASE+nombreSerie.replace(" ", "+")+"&Season="+i+ API_KEY);   /* Llama a la API OMDb y obtiene una respuesta en formato JSON con
+                                                                                                                                    los datos de la serie "Game of Thrones".*/
 
             var datosTemporadas = conversor.obtenerDatos(json,DatosTemporada.class);
             temporadas.add(datosTemporadas);
@@ -78,10 +77,13 @@ List<DatosEpisodio> datosEpisodios = temporadas.stream()
                                                .flatMap(t -> t.episodios().stream())
                                                .collect(Collectors.toList());
 
-// Top 5 episodios
+ // Top 5 episodios
         System.out.println("Top 5 episodios");
         datosEpisodios.stream()
                 .filter(e -> !e.evaluacion().equalsIgnoreCase("N/A"))
+                .peek(e-> System.out.println("Primer filtro ((N/A) "+e))   /* El método .peek() en Java se usa dentro de una Stream para inspeccionar (espiar) los elementos mientras
+                                                                                           fluyen por el pipeline, sin modificarlos. Es útil, por ejemplo, para ver qué está pasando internamente
+                                                                                           durante una cadena de operaciones, como filter(), map(), collect(), etc.    */
                 .sorted(Comparator.comparing(DatosEpisodio::evaluacion).reversed())
                 .limit(5)
                 .forEach(System.out::println);
@@ -128,10 +130,72 @@ List<DatosEpisodio> datosEpisodios = temporadas.stream()
                                 "Fecha de Lanzamiento " + e.getFechaDeLanzamiento().format(dtf)
                 ));
 
+//--------------------------------------------------------------
+        // Busca episodio por pedazo de titulo
+
+        System.out.println("Escriba el pedazo de titulo del episodio que deseas ver");                          // Se pide al usuario que escriba una parte del título del episodio (puede ser una palabra o fragmento).
+
+        var pedazoTitulo= teclado.nextLine();                                                                  //→ Se guarda en la variable pedazoTitulo.
+
+        Optional<Episodio> episodioBuscado = episodios.stream()                                                // episodios.stream(): transforma la lista de episodios en un Stream para poder procesarlos.
+                .filter(e -> e.getTitulo().toUpperCase().contains(pedazoTitulo.toUpperCase()))        // .filter(...): busca episodios cuyo título contenga el texto que escribió el usuario.
+                .findFirst();                                                                                 // .findFirst(): devuelve el primer episodio que cumple la condición (si existe).
+
+                                                                                                              /* a función .contains() en Java se usa para verificar si una cadena de texto contiene otra cadena
+                                                                                                                 de texto dentro de ella. Retorna un valor booleano (true o false). */
+
+        if (episodioBuscado.isPresent()){                                       //.isPresent(): verifica si se encontró un episodio. Para acceder al valor dentro de Optional, podemos usar ifPresent y orElse
+            System.out.println(" Episodio encontrado");
+            System.out.println("Los Datos son: " + episodioBuscado.get());     // .get(): obtiene el episodio dentro del Optional con todos los datos. También se puede acceder a una propiedad: get().getTitulo()
+        } else {
+
+            System.out.println("Episodio no encontrado");
+        }
+//--------------------------------------------------
+        Map<Integer,Double> evaluacionesPorTemporada = episodios.stream()      // Convierte la lista de episodios en un Stream, para poder procesarla con operaciones funcionales como filter, collect, etc.
+                .filter(e -> e.getEvaluacion() > 0.0)                  /* Filtra los episodios para quedarte solo con aquellos que tienen una evaluación mayor a 0.
+                                                                                  ️ Esto evita promediar episodios sin evaluación (que quizás valen 0 por defecto).*/
+
+                .collect(Collectors.groupingBy(Episodio::getTemporada,        // collect(...): Agrupa y transforma los datos del stream. Aquí se usa para recolectar el resultado en un Map. Este es el paso donde recolectamos los resultados y los transformamos en un Map.
+                                                                              // groupingBy(Episodio::getTemporada, ...) : Agrupa los episodios por el número de temporada (por ejemplo, 1, 2, 3...).
+                                                                              // El Map que se genera tendrá como clave el número de temporada (Integer)  Y como valor: el resultado del segundo parámetro...
+                 Collectors.averagingDouble(Episodio::getEvaluacion)));       // Este es el valor del Map: para cada grupo (temporada), calcula el promedio de las evaluaciones (getEvaluacion()).
+
+
+
+        // Collectors.averagingDouble(Episodio::getEvaluacion)
+        // Una vez que agrupamos, usamos esta parte para decir qué hacer con cada grupo:
+        // Calcula el promedio de las evaluaciones de los episodios de cada temporada.
+        // averagingDouble(...) necesita un número tipo double, por eso usamos Episodio::getEvaluacion.
+
+        System.out.println(evaluacionesPorTemporada);
+
+
+   //---------------------------------------------
+
+   DoubleSummaryStatistics est = episodios.stream()     // episodios.stream() Convierte la lista episodios en un Stream para poder procesarla con operaciones funcionales como filter y collect.
+           .filter(e->e.getEvaluacion()>0.0)   // .filter(e -> e.getEvaluacion() > 0.0) : Filtra los episodios: Solo deja pasar aquellos cuya evaluación (getEvaluacion()) sea mayor que 0.0.
+                                                       // Esto descarta episodios sin calificación o con errores.
+
+           .collect(Collectors.summarizingDouble(Episodio::getEvaluacion));  // .collect(Collectors.summarizingDouble(Episodio::getEvaluacion)) Este paso:
+                                                                              /*     Recolecta (collect) estadísticas sobre los valores double obtenidos de Episodio::getEvaluacion.
+                                                                                     Devuelve un objeto de tipo DoubleSummaryStatistics.
+                                                                                     Este objeto contiene: Count → Cuántos elementos se evaluaron. Sum → La suma de todas las evaluaciones.
+                                                                                      Min → La evaluación más baja.  Max → La evaluación más alta. Average → El promedio de las evaluaciones. */
+
+
+        System.out.println(est);                                               // Se imprime todo las estadisticas, pero tambien podemos imprimir solo los valores que queramos
+        System.out.println("Media de las evaluaciones: " + est.getAverage());  //
+        System.out.println("Episodio Mejor evaluado: " + est.getMax());
+        System.out.println("Episodio Peor evaluado: " + est.getMin());
+
 
     }
 
 
 
 }
+
+
+
 
